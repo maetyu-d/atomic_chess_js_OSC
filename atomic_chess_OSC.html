@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Atomic Chess (OSC)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        linear-gradient(180deg, #050509 0, #0b0c11 40%, #050509 100%);
+      color: #f5f5f5;
+    }
+    .app {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      padding: 18px 22px 24px;
+      background: #101115;
+      border-radius: 4px;
+      box-shadow:
+        0 0 0 2px #ffcc00,
+        0 0 0 6px #ff4b2b;
+      max-width: 1150px;
+      width: 100%;
+      border: 2px solid #111318;
+      align-items: stretch;
+    }
+    .left-pane {
+      flex: 1.2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      border-right: 2px solid #242732;
+      padding-right: 10px;
+    }
+    .right-pane {
+      flex: 0.9;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 280px;
+      padding-left: 4px;
+    }
+    h1 {
+      font-size: 20px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      margin: 0;
+      padding: 4px 0;
+      color: #ffcc00;
+      border-bottom: 2px solid #ff4b2b;
+      font-weight: 800;
+    }
+    h2 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      margin: 0 0 6px;
+      color: #ffdd7a;
+      border-bottom: 1px solid #2f3240;
+      padding-bottom: 3px;
+    }
+    .board-wrapper {
+      position: relative;
+      border: 2px solid #000000;
+      background: #000000;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 72px);
+      grid-template-rows: repeat(8, 72px);
+      border-radius: 0;
+      overflow: hidden;
+      background: #000000;
+    }
+    .square {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 52px;
+      cursor: pointer;
+      user-select: none;
+      transition:
+        transform 0.03s ease-out,
+        box-shadow 0.03s ease-out,
+        background-color 0.03s ease-out;
+      position: relative;
+      border: 1px solid rgba(0, 0, 0, 0.7);
+    }
+    /* Atomic yellow + atomic red squares (flattened but same colours) */
+    .square.light {
+      background-color: #ffe66d;
+    }
+    .square.dark  {
+      background-color: #b42525;
+    }
+    .square:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 2px #111111 inset;
+    }
+    .square.selected {
+      outline: 3px solid #00ffd5;
+      outline-offset: -3px;
+      box-shadow: 0 0 0 3px #00ffd5 inset;
+    }
+
+    /* Piece styling: keep neon palette but harder */
+    .square.white-piece {
+      color: #b6fff8;
+      text-shadow:
+        0 0 2px #000000,
+        0 0 4px #00ffd5;
+    }
+    .square.black-piece {
+      color: #ffb3ff;
+      text-shadow:
+        0 0 2px #000000,
+        0 0 4px #ff0099;
+    }
+
+    /* Pulsing neon lime-green highlighting for available moves (kept, but sharper) */
+    @keyframes limePulse {
+      0% {
+        box-shadow:
+          0 0 0 0 rgba(0,255,128,0.4);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow:
+          0 0 0 3px rgba(0,255,128,1);
+        transform: scale(1.02);
+      }
+      100% {
+        box-shadow:
+          0 0 0 0 rgba(0,255,128,0.4);
+        transform: scale(1);
+      }
+    }
+
+    .square.move-target,
+    .square.capture-target {
+      animation: limePulse 0.9s ease-in-out infinite;
+      background-image:
+        radial-gradient(circle at center, rgba(0,255,128,0.32) 0%, rgba(0,255,128,0.0) 70%);
+    }
+    .square.move-target::after,
+    .square.capture-target::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      border: 2px solid #00ff80;
+      background: #000000;
+    }
+    .square.move-target::after {
+      width: 18px;
+      height: 18px;
+    }
+    .square.capture-target::after {
+      width: 26px;
+      height: 26px;
+      border-width: 3px;
+    }
+
+    /* Atomic hit flash on affected squares */
+    .square.atomic-hit {
+      animation: atomicFlash 0.4s ease-out;
+      background: #ff5733;
+      box-shadow: 0 0 0 3px #ffdd55 inset;
+    }
+
+    @keyframes atomicFlash {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    /* Explosion overlay (keep colours, slightly harsher transition) */
+    .explosion {
+      position: absolute;
+      width: 216px;
+      height: 216px;
+      border-radius: 50%;
+      pointer-events: none;
+      background: radial-gradient(circle,
+        rgba(255,255,220,1) 0%,
+        rgba(255,220,0,1) 30%,
+        rgba(255,100,0,0.95) 60%,
+        rgba(255,0,120,0.8) 78%,
+        rgba(0,0,0,0.0) 100%);
+      opacity: 0.95;
+      animation: explosionPulse 0.35s ease-out forwards;
+    }
+    @keyframes explosionPulse {
+      0%   { transform: scale(0.5); opacity: 1; }
+      70%  { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1.1); opacity: 0; }
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      font-size: 12px;
+      margin-top: 6px;
+      border-top: 1px solid #242732;
+      padding-top: 4px;
+    }
+    .status-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 0;
+      background: #0b0c10;
+      border: 1px solid #2f3240;
+    }
+    .player-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 0;
+      background: #ffffff;
+      border: 1px solid #000;
+    }
+    .player-dot.white { background: #00ffd5; }
+    .player-dot.black { background: #ff007f; }
+    .status-text { color: #f4f4ff; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    button {
+      border-radius: 0;
+      border: 2px solid #ff4b2b;
+      padding: 6px 14px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: #ffcc00;
+      color: #000000;
+      font-weight: 800;
+    }
+    button:hover {
+      background: #ff4b2b;
+      color: #000000;
+    }
+    button:active {
+      background: #ffcc00;
+      transform: translateY(1px);
+    }
+
+    .labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      padding: 0 2px;
+      font-size: 10px;
+      color: #ffdd7a;
+      text-transform: uppercase;
+    }
+    .rank-labels {
+      position: absolute;
+      left: -18px;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #ffdd7a;
+      text-transform: uppercase;
+    }
+
+    .info-section {
+      padding: 8px 10px 8px;
+      background: #0b0c10;
+      border-radius: 0;
+      border: 1px solid #2f3240;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+    .move-list {
+      margin: 0;
+      padding-left: 18px;
+      font-size: 11px;
+      list-style-position: inside;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+    .move-list li {
+      margin: 0;
+      padding: 1px 0;
+      color: #e3e7ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .osc-status {
+      font-size: 10px;
+      color: #9ea7c7;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .osc-status span { font-weight: 700; }
+
+    .osc-log {
+      font-size: 10px;
+      line-height: 1.3;
+      overflow-y: auto;
+      background: #020308;
+      border-radius: 0;
+      padding: 6px 8px;
+      border: 1px solid #2f3240;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: #e0f7ff;
+      flex: 1;
+      min-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="left-pane">
+      <div class="board-wrapper">
+        <div class="rank-labels" id="rankLabels"></div>
+        <div id="chessBoard" class="board"></div>
+        <div class="labels" id="fileLabels"></div>
+      </div>
+      <div class="status-bar">
+        <div class="status-main">
+          <div id="turnIndicator" class="player-dot white"></div>
+          <div id="statusText" class="status-text">White to move</div>
+        </div>
+        <button id="resetBtn" type="button">Reset Game</button>
+      </div>
+    </div>
+
+    <div class="right-pane">
+      <h1>Atomic Chess</h1>
+
+      <div class="info-section">
+        <h2>Moves</h2>
+        <ol id="moveList" class="move-list"></ol>
+      </div>
+
+      <div class="info-section">
+        <h2>OSC</h2>
+        <div class="osc-status">WebSocket: <span id="oscStatus">connecting…</span></div>
+        <pre id="oscLog" class="osc-log"></pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    console.log("[CHESS] Script starting up…");
+
+    const EMPTY = null;
+    let board = [];
+    let currentPlayer = "w";
+    let selected = null;
+    let legalMoves = [];
+    let gameOver = false;
+    let moveCounter = 1;
+
+    // For temporary atomic hit flashes
+    let explosionCells = [];
+
+    const boardEl        = document.getElementById("chessBoard");
+    const statusTextEl   = document.getElementById("statusText");
+    const turnIndicatorEl= document.getElementById("turnIndicator");
+    const resetBtn       = document.getElementById("resetBtn");
+    const rankLabelsEl   = document.getElementById("rankLabels");
+    const fileLabelsEl   = document.getElementById("fileLabels");
+    const oscStatusEl    = document.getElementById("oscStatus");
+    const boardWrapperEl = document.querySelector(".board-wrapper");
+    const moveListEl     = document.getElementById("moveList");
+    const oscLogEl       = document.getElementById("oscLog");
+
+    const pieceSymbols = {
+      w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
+      b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" }
+    };
+
+    // WebSocket instead of osc.js
+    let oscSocket = null;
+
+    function logOSCLine(line) {
+      if (!oscLogEl) return;
+      oscLogEl.textContent += line + "\n";
+      oscLogEl.scrollTop = oscLogEl.scrollHeight;
+    }
+
+    function initOSC() {
+      const url = "ws://localhost:8081";
+      console.log("[OSC] Initialising WebSocket to", url);
+
+      try {
+        oscSocket = new WebSocket(url);
+
+        oscSocket.addEventListener("open", () => {
+          console.log("[OSC] WebSocket connected.");
+          oscStatusEl.textContent = "connected";
+          logOSCLine("Connected to " + url);
+        });
+
+        oscSocket.addEventListener("error", (err) => {
+          console.error("[OSC] WebSocket error:", err);
+          oscStatusEl.textContent = "error";
+          logOSCLine("WebSocket error (see console).");
+        });
+
+        oscSocket.addEventListener("close", () => {
+          console.warn("[OSC] WebSocket closed.");
+          oscStatusEl.textContent = "disconnected";
+          logOSCLine("WebSocket closed.");
+        });
+
+        oscSocket.addEventListener("message", (event) => {
+          console.log("[OSC] Message from bridge:", event.data);
+          logOSCLine("<- " + event.data);
+        });
+      } catch (e) {
+        console.error("[OSC] Failed to init WebSocket:", e);
+        oscStatusEl.textContent = "failed";
+        oscSocket = null;
+        logOSCLine("Failed to init WebSocket.");
+      }
+    }
+
+    function coordToAlgebraic(r, c) {
+      const files = "abcdefgh";
+      return files[c] + (8 - r);
+    }
+
+    function sendOscMove(fr, fc, tr, tc, moving, target) {
+      const fromSq = coordToAlgebraic(fr, fc);
+      const toSq   = coordToAlgebraic(tr, tc);
+
+      if (!oscSocket || oscSocket.readyState !== WebSocket.OPEN) {
+        console.warn("[OSC] Cannot send: WebSocket not open. readyState =", oscSocket && oscSocket.readyState);
+        logOSCLine("! send blocked (socket not open): " + fromSq + " -> " + toSq);
+        return;
+      }
+
+      const msg = {
+        address: "/chess/move",
+        args: [
+          { type: "s", value: fromSq },
+          { type: "s", value: toSq },
+          { type: "s", value: moving.color === "w" ? "white" : "black" },
+          { type: "s", value: moving.type },
+          { type: "i", value: target ? 1 : 0 }
+        ]
+      };
+      console.log("[OSC] Sending move JSON:", msg);
+      try {
+        oscSocket.send(JSON.stringify(msg));
+        logOSCLine("-> /chess/move " +
+          fromSq + " " + toSq + " " +
+          (moving.color === "w" ? "white" : "black") + " " +
+          moving.type + " capture=" + (target ? 1 : 0));
+      } catch (e) {
+        console.error("[OSC] Error while sending message:", e);
+        logOSCLine("! send error (see console).");
+      }
+    }
+
+    function addMoveToList(fr, fc, tr, tc, moving, target) {
+      if (!moveListEl) return;
+      const fromSq = coordToAlgebraic(fr, fc);
+      const toSq   = coordToAlgebraic(tr, tc);
+      const colorName = moving.color === "w" ? "White" : "Black";
+      const pieceChar = moving.type.toUpperCase();
+      const captureFlag = target ? " x" : "";
+      const li = document.createElement("li");
+      li.textContent = colorName + " " + pieceChar + " " + fromSq + " → " + toSq + captureFlag;
+      moveListEl.appendChild(li);
+      moveListEl.scrollTop = moveListEl.scrollHeight;
+      moveCounter++;
+    }
+
+    function initBoard() {
+      console.log("[CHESS] Initialising board…");
+      board = Array.from({ length: 8 }, () => Array(8).fill(EMPTY));
+      const back = ["r","n","b","q","k","b","n","r"];
+      for (let c=0;c<8;c++){
+        board[0][c]={type:back[c],color:"b"};
+        board[1][c]={type:"p",color:"b"};
+        board[7][c]={type:back[c],color:"w"};
+        board[6][c]={type:"p",color:"w"};
+      }
+      currentPlayer="w"; selected=null; legalMoves=[]; gameOver=false;
+      explosionCells = [];
+      moveCounter = 1;
+      if (moveListEl) moveListEl.innerHTML = "";
+      renderBoard();
+      updateStatus();
+    }
+
+    function initLabels() {
+      console.log("[CHESS] Initialising rank/file labels");
+      rankLabelsEl.innerHTML = "";
+      for (let r=0;r<8;r++){
+        const lab=document.createElement("div");
+        lab.textContent=8-r;
+        rankLabelsEl.appendChild(lab);
+      }
+      fileLabelsEl.innerHTML="";
+      for (const f of "abcdefgh"){
+        const s=document.createElement("span");
+        s.textContent=f;
+        fileLabelsEl.appendChild(s);
+      }
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML="";
+      for (let r=0;r<8;r++){
+        for (let c=0;c<8;c++){
+          const sq=document.createElement("div");
+          sq.className="square "+(((r+c)%2===0)?"light":"dark");
+          sq.dataset.r=r; sq.dataset.c=c;
+          const p=board[r][c];
+          if(p) {
+            sq.textContent=pieceSymbols[p.color][p.type];
+            sq.classList.add(p.color === "w" ? "white-piece" : "black-piece");
+          }
+
+          if(selected && selected.r===r && selected.c===c)
+            sq.classList.add("selected");
+          const m=legalMoves.find(x=>x.r===r&&x.c===c);
+          if(m){
+            sq.classList.add(m.capture?"capture-target":"move-target");
+          }
+
+          // Atomic explosion flash overlay on affected cells
+          if (explosionCells.some(e => e.r === r && e.c === c)) {
+            sq.classList.add("atomic-hit");
+          }
+
+          sq.onclick=onSquareClick;
+          boardEl.appendChild(sq);
+        }
+      }
+    }
+
+    function updateStatus(msg){
+      if(msg){ statusTextEl.textContent=msg; return; }
+      if (gameOver) return;
+      const txt = currentPlayer==="w"?"White to move":"Black to move";
+      statusTextEl.textContent = txt;
+      turnIndicatorEl.className = "player-dot " + (currentPlayer==="w"?"white":"black");
+    }
+
+    function onSquareClick(e){
+      if(gameOver) {
+        console.log("[CHESS] Click ignored: game over.");
+        return;
+      }
+      const r=+e.currentTarget.dataset.r;
+      const c=+e.currentTarget.dataset.c;
+      const p=board[r][c];
+      console.log("[CHESS] Square clicked:", { r, c, piece: p });
+
+      if(!selected){
+        if(p && p.color===currentPlayer){
+          console.log("[CHESS] Selecting piece at", r, c);
+          selected={r,c};
+          legalMoves=getLegalMoves(r,c,board);
+          console.log("[CHESS] Legal moves:", legalMoves);
+          renderBoard();
+        } else {
+          console.log("[CHESS] Clicked empty or opponent piece with nothing selected.");
+        }
+        return;
+      }
+
+      if(selected.r===r && selected.c===c){
+        console.log("[CHESS] Deselected piece at", r, c);
+        selected=null; legalMoves=[]; renderBoard(); return;
+      }
+
+      if(p && p.color===currentPlayer){
+        console.log("[CHESS] Switching selection to another piece at", r, c);
+        selected={r,c};
+        legalMoves=getLegalMoves(r,c,board);
+        console.log("[CHESS] New legal moves:", legalMoves);
+        renderBoard();
+        return;
+      }
+
+      const move=legalMoves.find(m=>m.r===r&&m.c===c);
+      if(move){
+        console.log("[CHESS] Executing move from", selected, "to", {r,c}, "capture:", move.capture);
+        makeMove(selected.r,selected.c,r,c);
+        return;
+      }
+
+      console.log("[CHESS] Clicked non-legal square; clearing selection.");
+      selected=null; legalMoves=[]; renderBoard();
+    }
+
+    resetBtn.onclick = function() {
+      console.log("[CHESS] Reset button clicked.");
+      initBoard();
+    };
+
+    function inBounds(r,c){return r>=0&&r<8&&c>=0&&c<8;}
+
+    function pawnMoves(r,c,b,color){
+      const moves=[];
+      const dir=color==="w"?-1:1;
+      const start=color==="w"?6:1;
+      if(inBounds(r+dir,c) && !b[r+dir][c])
+        moves.push({r:r+dir,c, capture:false});
+      if(r===start && !b[r+dir][c] && !b[r+2*dir][c])
+        moves.push({r:r+2*dir,c, capture:false});
+      for(const dc of[-1,1]){
+        const nr=r+dir,nc=c+dc;
+        if(inBounds(nr,nc) && b[nr][nc] && b[nr][nc].color!==color)
+          moves.push({r:nr,c:nc,capture:true});
+      }
+      return moves;
+    }
+
+    function sliding(r,c,b,color,dirs){
+      const out=[];
+      for(const[dr,dc] of dirs){
+        let nr=r+dr,nc=c+dc;
+        while(inBounds(nr,nc)){
+          if(!b[nr][nc]) out.push({r:nr,c:nc,capture:false});
+          else {
+            if(b[nr][nc].color!==color) out.push({r:nr,c:nc,capture:true});
+            break;
+          }
+          nr+=dr; nc+=dc;
+        }
+      }
+      return out;
+    }
+
+    function knight(r,c,b,color){
+      const K=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      const out=[];
+      for(const[dr,dc]of K){
+        const nr=r+dr,nc=c+dc;
+        if(!inBounds(nr,nc)) continue;
+        const t=b[nr][nc];
+        if(!t||t.color!==color)
+          out.push({r:nr,c:nc,capture:!!t});
+      }
+      return out;
+    }
+
+    function king(r,c,b,color){
+      const out=[];
+      for(let dr=-1;dr<=1;dr++){
+        for(let dc=-1;dc<=1;dc++){
+          if(!dr&&!dc) continue;
+          const nr=r+dr,nc=c+dc;
+          if(!inBounds(nr,nc)) continue;
+          const t=b[nr][nc];
+          if(!t||t.color!==color)
+            out.push({r:nr,c:nc,capture:!!t});
+        }
+      }
+      return out;
+    }
+
+    function getLegalMoves(r,c,b){
+      const p=b[r][c];
+      if(!p||p.color!==currentPlayer) return[];
+      switch(p.type){
+        case"p":return pawnMoves(r,c,b,p.color);
+        case"r":return sliding(r,c,b,p.color,[[-1,0],[1,0],[0,-1],[0,1]]);
+        case"b":return sliding(r,c,b,p.color,[[-1,-1],[-1,1],[1,-1],[1,1]]);
+        case"q":return sliding(r,c,b,p.color,[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]);
+        case"n":return knight(r,c,b,p.color);
+        case"k":return king(r,c,b,p.color);
+      }
+      return[];
+    }
+
+    function evaluateAtomicOutcome() {
+      let whiteKing=false, blackKing=false;
+      for (let r=0;r<8;r++){
+        for (let c=0;c<8;c++){
+          const p=board[r][c];
+          if (!p) continue;
+          if (p.type === "k") {
+            if (p.color === "w") whiteKing = true;
+            else blackKing = true;
+          }
+        }
+      }
+      if (whiteKing && blackKing) return null;
+      if (!whiteKing && !blackKing) return "Both kings vaporised. Atomic draw.";
+      if (!whiteKing) return "Black wins in a nuclear blast.";
+      if (!blackKing) return "White wins in a nuclear blast.";
+      return null;
+    }
+
+    function triggerExplosionAnimation(cr, cc) {
+      if (!boardWrapperEl) return;
+      const size = 72;
+      const overlay = document.createElement("div");
+      overlay.className = "explosion";
+
+      const left = (cc - 1) * size;
+      const top  = (cr - 1) * size;
+
+      overlay.style.left = left + "px";
+      overlay.style.top  = top  + "px";
+
+      boardWrapperEl.appendChild(overlay);
+      overlay.addEventListener("animationend", () => {
+        overlay.remove();
+      });
+    }
+
+    function applyAtomicExplosion(cr, cc) {
+      console.log("[ATOMIC] Explosion at", cr, cc);
+      const now = performance.now();
+      const affected = [];
+
+      for (let r = cr - 1; r <= cr + 1; r++) {
+        for (let c = cc - 1; c <= cc + 1; c++) {
+          if (!inBounds(r, c)) continue;
+          // Capturing piece (at cr,cc) survives
+          if (r === cr && c === cc) continue;
+
+          if (board[r][c]) {
+            console.log("[ATOMIC] Destroying piece at", r, c, board[r][c]);
+            board[r][c] = EMPTY;
+          }
+          affected.push({ r, c, expiresAt: now + 400 });
+        }
+      }
+
+      explosionCells = explosionCells.concat(affected);
+      triggerExplosionAnimation(cr, cc);
+      renderBoard();
+
+      setTimeout(() => {
+        const t = performance.now();
+        explosionCells = explosionCells.filter(e => e.expiresAt > t);
+        renderBoard();
+      }, 450);
+
+      const outcome = evaluateAtomicOutcome();
+      if (outcome) {
+        console.log("[ATOMIC] Game over:", outcome);
+        gameOver = true;
+        updateStatus(outcome);
+      }
+    }
+
+    // Full-board blast when a king is directly captured
+    function applyKingNuke(cr, cc, movingPiece) {
+      console.log("[ATOMIC] KING NUKE at", cr, cc);
+      const now = performance.now();
+      const affected = [];
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          // Capturing piece at (cr, cc) survives
+          if (r === cr && c === cc) continue;
+          if (board[r][c]) {
+            console.log("[ATOMIC] King-nuke destroying piece at", r, c, board[r][c]);
+            board[r][c] = EMPTY;
+          }
+          affected.push({ r, c, expiresAt: now + 600 });
+        }
+      }
+
+      explosionCells = affected;
+      triggerExplosionAnimation(cr, cc);
+      renderBoard();
+
+      setTimeout(() => {
+        const t = performance.now();
+        explosionCells = explosionCells.filter(e => e.expiresAt > t);
+        renderBoard();
+      }, 650);
+
+      const winner = movingPiece.color === "w" ? "White" : "Black";
+      const msg = winner + " wins by capturing the king in a total board detonation.";
+      console.log("[ATOMIC] Game over:", msg);
+      gameOver = true;
+      updateStatus(msg);
+    }
+
+    function makeMove(fr,fc,tr,tc){
+      const moving=board[fr][fc];
+      const target=board[tr][tc];
+      console.log("[CHESS] makeMove:", {
+        from:{r:fr,c:fc},
+        to:{r:tr,c:tc},
+        moving,
+        target
+      });
+
+      // Move piece first
+      board[tr][tc]=moving;
+      board[fr][fc]=EMPTY;
+
+      const isCapture = !!target;
+
+      // Clear selection and available move highlights immediately for the new board state
+      selected = null;
+      legalMoves = [];
+
+      if (isCapture && target.type === "k") {
+        // Special rule: king capture = full-board nuke
+        applyKingNuke(tr, tc, moving);
+      } else if (isCapture) {
+        // Standard atomic explosion around capture square
+        applyAtomicExplosion(tr, tc);
+      } else {
+        renderBoard();
+      }
+
+      addMoveToList(fr, fc, tr, tc, moving, target);
+      // Send OSC for the move (capture flag only reflects direct capture, not blast casualties)
+      sendOscMove(fr,fc,tr,tc,moving,target);
+
+      if (gameOver) {
+        selected = null;
+        legalMoves = [];
+        return;
+      }
+
+      currentPlayer=currentPlayer==="w"?"b":"w";
+      updateStatus();
+    }
+
+    // Boot sequence
+    console.log("[CHESS] Booting…");
+    initLabels();
+    initBoard();
+    initOSC();
+    console.log("[CHESS] Boot complete.");
+  </script>
+</body>
+</html>
