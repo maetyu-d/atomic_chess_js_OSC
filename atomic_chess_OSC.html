@@ -129,7 +129,7 @@
         0 0 4px #ff0099;
     }
 
-    /* Pulsing neon lime-green highlighting for available moves (kept, but sharper) */
+    /* neon lime-green highlighting for available moves */
     @keyframes limePulse {
       0% {
         box-shadow:
@@ -185,7 +185,7 @@
       100% { transform: scale(1); }
     }
 
-    /* Explosion overlay (keep colours, slightly harsher transition) */
+    /* Explosion overlay */
     .explosion {
       position: absolute;
       width: 216px;
@@ -396,7 +396,7 @@
       b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" }
     };
 
-    // WebSocket instead of osc.js
+    // WebSocket (not osc.js)
     let oscSocket = null;
 
     function logOSCLine(line) {
@@ -548,7 +548,7 @@
             sq.classList.add(m.capture?"capture-target":"move-target");
           }
 
-          // Atomic explosion flash overlay on affected cells
+          // Atomic flash overlay on affected cells
           if (explosionCells.some(e => e.r === r && e.c === c)) {
             sq.classList.add("atomic-hit");
           }
@@ -770,7 +770,7 @@
       }
     }
 
-    // Full-board blast when a king is directly captured
+    // Full-board explosion when a king is taken
     function applyKingNuke(cr, cc, movingPiece) {
       console.log("[ATOMIC] KING NUKE at", cr, cc);
       const now = performance.now();
@@ -799,7 +799,7 @@
       }, 650);
 
       const winner = movingPiece.color === "w" ? "White" : "Black";
-      const msg = winner + " wins by capturing the king in a total board detonation.";
+      const msg = winner + " wins by capturing the king.";
       console.log("[ATOMIC] Game over:", msg);
       gameOver = true;
       updateStatus(msg);
@@ -836,7 +836,7 @@
       }
 
       addMoveToList(fr, fc, tr, tc, moving, target);
-      // Send OSC for the move (capture flag only reflects direct capture, not blast casualties)
+      // Send OSC for the move (capture flag only reflects direct capture)
       sendOscMove(fr,fc,tr,tc,moving,target);
 
       if (gameOver) {
