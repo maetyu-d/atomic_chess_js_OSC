@@ -1,10 +1,10 @@
-Download and unzip atomic_chess_js_OSC-main.zip
+Download https://github.com/maetyu-d/atomic_chess_js_OSC/blob/main/atomic_chess_js_OSC-main.zip and unzip
 
 Install node.js if not present already
 
 Install Pure Data (vanilla) from https://puredata.info/downloads/pure-data if not already installed.
 
-Then, in the terminal, cd to the atomic_chess_js_OSC-main folder, then run:
+Then, in the terminal, cd to the atomic_chess_js_OSC-main folder you just unzipped, then run:
 
 npm install osc ws
 node bridge.js
