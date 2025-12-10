@@ -1,4 +1,4 @@
-// bridge.js using plain WebSocket JSON from browser → OSC UDP
+// bridge.js using plain WebSocket JSON from browser => OSC UDP
 const osc = require("osc");
 const WebSocket = require("ws");
 
