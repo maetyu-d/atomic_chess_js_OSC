@@ -688,8 +688,7 @@
 
     let moveHistory = [];
 
-    // Contaminated ground-zero squares
-    // Each entry: { r, c, active, turnsRemaining }
+    // Contaminated squares - each entry: (r, c, active, turnsRemaining)
     let contaminatedSquares = [];
 
     const boardEl        = document.getElementById("chessBoard");
@@ -1033,7 +1032,7 @@
     }
 
     function advanceContamination(fr, fc) {
-      // When the taker moves OUT of a contaminated ground zero, activate the 3-turn lock.
+      // When the taker moves out of a contaminated square, activate the 3-turn lock.
       const justActivated = [];
       contaminatedSquares.forEach(cs => {
         if (!cs.active && cs.r === fr && cs.c === fc) {
@@ -1043,7 +1042,7 @@
         }
       });
 
-      // Decrement existing active contamination (but not the one we just activated).
+      // Decrement existing active contamination (but not the one just activated).
       contaminatedSquares.forEach(cs => {
         if (cs.active && !justActivated.includes(cs)) {
           cs.turnsRemaining--;
@@ -1484,7 +1483,7 @@
       if (outcome) {
         gameOver = true;
         updateStatus(outcome.message);
-        // Delay the win screen by 1 second after a KING NUKE for extra drama.
+        // Delay the win screen by 1 second after a King nuke.
         setTimeout(() => {
           if (outcome.winner) {
             showWinnerOverlay(outcome.winner, outcome.message);
@@ -1557,7 +1556,7 @@
         playOneShot("move");
       } else {
         playOneShot("capture");
-        // Mark ground-zero contamination on capture square
+        // Mark contamination on capture square
         markContamination(tr, tc);
       }
 
@@ -1577,7 +1576,7 @@
         return;
       }
 
-      // Advance contamination lifecycle once the move is completed
+      // Advance contamination stage once the move is completed
       advanceContamination(fr, fc);
 
       currentPlayer = currentPlayer === "w" ? "b" : "w";
@@ -1668,7 +1667,7 @@
         }
       });
 
-      console.log("[CHESS] Boot complete. Press 'A' to toggle audio / moves. Waiting for START GAME.");
+      console.log("[CHESS] Boot complete. Press 'a' key to toggle audio / moves. Waiting for START GAME.");
     }
 
     boot();
