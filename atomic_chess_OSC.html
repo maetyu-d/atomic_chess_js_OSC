@@ -14,10 +14,21 @@
       align-items: center;
       justify-content: center;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        linear-gradient(180deg, #050509 0, #0b0c11 40%, #050509 100%);
+      background: linear-gradient(180deg, #050509 0, #0b0c11 40%, #050509 100%);
       color: #f5f5f5;
+      position: relative;
+      overflow: hidden;
     }
+
+    .nuke-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.15s linear;
+    }
+
     .app {
       display: flex;
       flex-direction: row;
@@ -32,6 +43,8 @@
       width: 100%;
       border: 2px solid #111318;
       align-items: stretch;
+      position: relative;
+      z-index: 10;
     }
     .left-pane {
       flex: 1.2;
@@ -47,7 +60,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      min-width: 280px;
+      min-width: 320px;
       padding-left: 4px;
     }
     h1 {
@@ -98,7 +111,6 @@
       position: relative;
       border: 1px solid rgba(0, 0, 0, 0.7);
     }
-    /* Atomic yellow + atomic red squares (flattened but same colours) */
     .square.light {
       background-color: #ffe66d;
     }
@@ -115,7 +127,6 @@
       box-shadow: 0 0 0 3px #00ffd5 inset;
     }
 
-    /* Piece styling: keep neon palette but harder */
     .square.white-piece {
       color: #b6fff8;
       text-shadow:
@@ -129,25 +140,25 @@
         0 0 4px #ff0099;
     }
 
-    /* neon lime-green highlighting for available moves */
+    .square.last-from,
+    .square.last-to {
+      box-shadow: 0 0 0 2px #ffcc00 inset;
+    }
+
     @keyframes limePulse {
       0% {
-        box-shadow:
-          0 0 0 0 rgba(0,255,128,0.4);
+        box-shadow: 0 0 0 0 rgba(0,255,128,0.4);
         transform: scale(1);
       }
       50% {
-        box-shadow:
-          0 0 0 3px rgba(0,255,128,1);
+        box-shadow: 0 0 0 3px rgba(0,255,128,1);
         transform: scale(1.02);
       }
       100% {
-        box-shadow:
-          0 0 0 0 rgba(0,255,128,0.4);
+        box-shadow: 0 0 0 0 rgba(0,255,128,0.4);
         transform: scale(1);
       }
     }
-
     .square.move-target,
     .square.capture-target {
       animation: limePulse 0.9s ease-in-out infinite;
@@ -172,20 +183,17 @@
       border-width: 3px;
     }
 
-    /* Atomic hit flash on affected squares */
     .square.atomic-hit {
       animation: atomicFlash 0.4s ease-out;
       background: #ff5733;
       box-shadow: 0 0 0 3px #ffdd55 inset;
     }
-
     @keyframes atomicFlash {
       0%   { transform: scale(1); }
       40%  { transform: scale(1.08); }
       100% { transform: scale(1); }
     }
 
-    /* Explosion overlay */
     .explosion {
       position: absolute;
       width: 216px;
@@ -205,6 +213,16 @@
       0%   { transform: scale(0.5); opacity: 1; }
       70%  { transform: scale(1.05); opacity: 1; }
       100% { transform: scale(1.1); opacity: 0; }
+    }
+
+    @keyframes pieceWobble {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.12) translateY(-2px); }
+      60%  { transform: scale(0.96); }
+      100% { transform: scale(1); }
+    }
+    .square.wobble {
+      animation: pieceWobble 0.18s ease-out;
     }
 
     .status-bar {
@@ -236,7 +254,11 @@
     }
     .player-dot.white { background: #00ffd5; }
     .player-dot.black { background: #ff007f; }
-    .status-text { color: #f4f4ff; text-transform: uppercase; letter-spacing: 0.08em; }
+    .status-text {
+      color: #f4f4ff;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
 
     button {
       border-radius: 0;
@@ -291,21 +313,6 @@
       flex: 1;
       min-height: 0;
     }
-    .move-list {
-      margin: 0;
-      padding-left: 18px;
-      font-size: 11px;
-      list-style-position: inside;
-      overflow-y: auto;
-      flex: 1;
-      min-height: 0;
-    }
-    .move-list li {
-      margin: 0;
-      padding: 1px 0;
-      color: #e3e7ff;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
 
     .osc-status {
       font-size: 10px;
@@ -331,9 +338,171 @@
       flex: 1;
       min-height: 0;
     }
+
+    .counter-box {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: #0b0c10;
+      border: 1px solid #2f3240;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 10px;
+    }
+    .counter-label {
+      color: #ffdd7a;
+    }
+    .counter-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffcc00;
+    }
+
+    .detonation-flash {
+      position: absolute;
+      right: 24px;
+      top: 18px;
+      padding: 4px 8px;
+      background: #ff4b2b;
+      border: 2px solid #ffcc00;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      pointer-events: none;
+      animation: detonationFlash 0.6s ease-out forwards;
+      z-index: 20;
+    }
+
+    @keyframes detonationFlash {
+      0%   { opacity: 0; transform: translateY(-4px); }
+      20%  { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-4px); }
+    }
+
+    .sound-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .sound-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sound-row-label {
+      width: 130px;
+      color: #ffdd7a;
+      white-space: nowrap;
+    }
+    .sound-row input[type="file"] {
+      flex: 1;
+      font-size: 10px;
+    }
+    .sound-row button {
+      padding: 4px 6px;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+    }
+
+    .moves-list {
+      font-size: 10px;
+      line-height: 1.3;
+      overflow-y: auto;
+      background: #020308;
+      border-radius: 0;
+      padding: 6px 8px;
+      border: 1px solid #2f3240;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      flex: 1;
+      min-height: 0;
+      color: #e0f7ff;
+    }
+
+    .winner-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .winner-overlay.hidden {
+      display: none;
+    }
+    .winner-box {
+      border: 4px solid #ffcc00;
+      background: #050509;
+      padding: 32px 40px 24px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+      box-shadow:
+        0 0 0 6px #ff4b2b,
+        0 0 40px rgba(0,0,0,0.9);
+    }
+    .winner-title {
+      font-size: 40px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      font-weight: 900;
+    }
+    .winner-subtitle {
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #ffdd7a;
+      margin-bottom: 22px;
+    }
+    .winner-btn {
+      border-radius: 0;
+      border: 2px solid #ff4b2b;
+      padding: 8px 20px;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: #ffcc00;
+      color: #000000;
+      font-weight: 800;
+      width: 100%;
+    }
+    .winner-btn:hover {
+      background: #ff4b2b;
+    }
+
+    .start-row {
+      margin-top: 4px;
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: flex-start;
+    }
+    .start-row button {
+      font-size: 10px;
+      padding: 4px 10px;
+    }
   </style>
 </head>
 <body>
+  <canvas id="nukeCanvas" class="nuke-canvas"></canvas>
+
+  <div id="winnerOverlay" class="winner-overlay hidden">
+    <div class="winner-box">
+      <div id="winnerTitle" class="winner-title">PLAYER WINS</div>
+      <div id="winnerSubtitle" class="winner-subtitle">TOTAL BOARD DETONATION</div>
+      <button id="winnerResetBtn" class="winner-btn" type="button">Play Again</button>
+    </div>
+  </div>
+
   <div class="app">
     <div class="left-pane">
       <div class="board-wrapper">
@@ -344,7 +513,7 @@
       <div class="status-bar">
         <div class="status-main">
           <div id="turnIndicator" class="player-dot white"></div>
-          <div id="statusText" class="status-text">White to move</div>
+          <div id="statusText" class="status-text">Press START GAME</div>
         </div>
         <button id="resetBtn" type="button">Reset Game</button>
       </div>
@@ -353,9 +522,56 @@
     <div class="right-pane">
       <h1>Atomic Chess</h1>
 
-      <div class="info-section">
+      <div class="counter-box">
+        <div class="counter-label">Detonations</div>
+        <div id="detonationCount" class="counter-value">0</div>
+      </div>
+
+      <div class="start-row">
+        <button id="startGameBtn" type="button">Start Game</button>
+      </div>
+
+      <div id="audioSection" class="info-section">
+        <h2>Audio</h2>
+        <div class="sound-grid">
+          <div class="sound-row">
+            <div class="sound-row-label">1 · Move</div>
+            <input id="soundMoveInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="testMoveBtn" type="button">Test</button>
+          </div>
+          <div class="sound-row">
+            <div class="sound-row-label">2 · Capture</div>
+            <input id="soundCaptureInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="testCaptureBtn" type="button">Test</button>
+          </div>
+          <div class="sound-row">
+            <div class="sound-row-label">3 · Ambient Kills</div>
+            <input id="soundSplashInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="testSplashBtn" type="button">Test</button>
+          </div>
+          <div class="sound-row">
+            <div class="sound-row-label">4 · King Nuke</div>
+            <input id="soundKingInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="testKingBtn" type="button">Test</button>
+          </div>
+          <div class="sound-row">
+            <div class="sound-row-label">5 · Background</div>
+            <input id="soundBgInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="bgTestBtn" type="button">Test</button>
+            <button id="bgStopBtn" type="button">Stop</button>
+          </div>
+          <div class="sound-row">
+            <div class="sound-row-label">6 · Victory</div>
+            <input id="soundWinInput" type="file" accept="audio/wav,audio/x-wav,audio/*" />
+            <button id="testWinBtn" type="button">Test</button>
+            <button id="stopWinBtn" type="button">Stop</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="movesSection" class="info-section" style="display:none;">
         <h2>Moves</h2>
-        <ol id="moveList" class="move-list"></ol>
+        <div id="movesList" class="moves-list"></div>
       </div>
 
       <div class="info-section">
@@ -375,10 +591,14 @@
     let selected = null;
     let legalMoves = [];
     let gameOver = false;
-    let moveCounter = 1;
+    let gameStarted = false;
+    let showIntroMessage = false;
 
-    // For temporary atomic hit flashes
     let explosionCells = [];
+    let detonationCount = 0;
+    let lastMove = null;
+
+    let moveHistory = [];
 
     const boardEl        = document.getElementById("chessBoard");
     const statusTextEl   = document.getElementById("statusText");
@@ -388,15 +608,55 @@
     const fileLabelsEl   = document.getElementById("fileLabels");
     const oscStatusEl    = document.getElementById("oscStatus");
     const boardWrapperEl = document.querySelector(".board-wrapper");
-    const moveListEl     = document.getElementById("moveList");
     const oscLogEl       = document.getElementById("oscLog");
+    const detonationCountEl = document.getElementById("detonationCount");
+    const startGameBtn   = document.getElementById("startGameBtn");
+    const audioSectionEl = document.getElementById("audioSection");
+    const movesSectionEl = document.getElementById("movesSection");
+    const movesListEl    = document.getElementById("movesList");
+
+    const winnerOverlayEl   = document.getElementById("winnerOverlay");
+    const winnerTitleEl     = document.getElementById("winnerTitle");
+    const winnerSubtitleEl  = document.getElementById("winnerSubtitle");
+    const winnerResetBtnEl  = document.getElementById("winnerResetBtn");
+
+    const nukeCanvas = document.getElementById("nukeCanvas");
+    const nukeCtx    = nukeCanvas.getContext ? nukeCanvas.getContext("2d") : null;
+
+    const soundMoveInput    = document.getElementById("soundMoveInput");
+    const soundCaptureInput = document.getElementById("soundCaptureInput");
+    const soundSplashInput  = document.getElementById("soundSplashInput");
+    const soundKingInput    = document.getElementById("soundKingInput");
+    const soundBgInput      = document.getElementById("soundBgInput");
+    const soundWinInput     = document.getElementById("soundWinInput");
+
+    const testMoveBtn    = document.getElementById("testMoveBtn");
+    const testCaptureBtn = document.getElementById("testCaptureBtn");
+    const testSplashBtn  = document.getElementById("testSplashBtn");
+    const testKingBtn    = document.getElementById("testKingBtn");
+    const testWinBtn     = document.getElementById("testWinBtn");
+    const bgTestBtn      = document.getElementById("bgTestBtn");
+    const bgStopBtn      = document.getElementById("bgStopBtn");
+    const stopWinBtn     = document.getElementById("stopWinBtn");
+
+    const sounds = {
+      move: null,
+      capture: null,
+      splash: null,
+      king: null,
+      bg: null,
+      win: null
+    };
+
+    let victoryFadeTimer = null;
+    let bgTestInstance = null;
+    let showAudioPane = true;
 
     const pieceSymbols = {
       w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
       b: { k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" }
     };
 
-    // WebSocket (not osc.js)
     let oscSocket = null;
 
     function logOSCLine(line) {
@@ -442,6 +702,137 @@
       }
     }
 
+    function bindSoundLoader(inputEl, key, loop = false) {
+      if (!inputEl) return;
+      inputEl.addEventListener("change", () => {
+        const file = inputEl.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        const audio = new Audio(url);
+        audio.loop = loop;
+        sounds[key] = audio;
+        console.log("[AUDIO] Loaded", key, file.name);
+      });
+    }
+
+    function playOneShot(key) {
+      const a = sounds[key];
+      if (!a) return;
+      try {
+        const clone = a.cloneNode();
+        clone.loop = false;
+        clone.currentTime = 0;
+        clone.play();
+      } catch (e) {
+        console.warn("[AUDIO] play failed", key, e);
+      }
+    }
+
+    function startBgMusic() {
+      const a = sounds.bg;
+      if (!a) return;
+      try {
+        a.loop = true;
+        a.currentTime = 0;
+        a.volume = 1;
+        a.play();
+      } catch (e) {
+        console.warn("[AUDIO] bg play failed", e);
+      }
+    }
+
+    function stopBgMusic() {
+      const a = sounds.bg;
+      if (a) {
+        try {
+          a.pause();
+          a.currentTime = 0;
+        } catch (e) {
+          console.warn("[AUDIO] bg stop failed", e);
+        }
+      }
+      if (bgTestInstance) {
+        try {
+          bgTestInstance.pause();
+          bgTestInstance.currentTime = 0;
+        } catch (e) {
+          console.warn("[AUDIO] bg test stop failed", e);
+        }
+        bgTestInstance = null;
+      }
+    }
+
+    function playVictory() {
+      const a = sounds.win;
+      if (!a) return;
+      try {
+        if (victoryFadeTimer) {
+          clearInterval(victoryFadeTimer);
+          victoryFadeTimer = null;
+        }
+        a.loop = false;
+        a.currentTime = 0;
+        a.volume = 1;
+        a.play();
+      } catch (e) {
+        console.warn("[AUDIO] victory play failed", e);
+      }
+    }
+
+    function stopVictory() {
+      const a = sounds.win;
+      if (!a) return;
+      try {
+        if (victoryFadeTimer) {
+          clearInterval(victoryFadeTimer);
+          victoryFadeTimer = null;
+        }
+        a.pause();
+        a.currentTime = 0;
+        a.volume = 1;
+      } catch (e) {
+        console.warn("[AUDIO] victory stop failed", e);
+      }
+    }
+
+    function fadeOutVictoryAndStartBg() {
+      stopBgMusic();
+
+      const a = sounds.win;
+      if (!a || a.paused || a.currentTime === 0 || a.ended) {
+        startBgMusic();
+        return;
+      }
+
+      if (victoryFadeTimer) {
+        clearInterval(victoryFadeTimer);
+        victoryFadeTimer = null;
+      }
+
+      let vol = a.volume;
+      if (vol <= 0) {
+        a.pause();
+        a.currentTime = 0;
+        a.volume = 1;
+        startBgMusic();
+        return;
+      }
+
+      victoryFadeTimer = setInterval(() => {
+        vol -= 0.05;
+        if (vol <= 0) {
+          a.pause();
+          a.currentTime = 0;
+          a.volume = 1;
+          clearInterval(victoryFadeTimer);
+          victoryFadeTimer = null;
+          startBgMusic();
+        } else {
+          a.volume = Math.max(0, vol);
+        }
+      }, 50);
+    }
+
     function coordToAlgebraic(r, c) {
       const files = "abcdefgh";
       return files[c] + (8 - r);
@@ -480,239 +871,320 @@
       }
     }
 
-    function addMoveToList(fr, fc, tr, tc, moving, target) {
-      if (!moveListEl) return;
-      const fromSq = coordToAlgebraic(fr, fc);
-      const toSq   = coordToAlgebraic(tr, tc);
-      const colorName = moving.color === "w" ? "White" : "Black";
-      const pieceChar = moving.type.toUpperCase();
-      const captureFlag = target ? " x" : "";
-      const li = document.createElement("li");
-      li.textContent = colorName + " " + pieceChar + " " + fromSq + " → " + toSq + captureFlag;
-      moveListEl.appendChild(li);
-      moveListEl.scrollTop = moveListEl.scrollHeight;
-      moveCounter++;
+    function updateDetonationCounter() {
+      detonationCount++;
+      if (detonationCountEl) {
+        detonationCountEl.textContent = detonationCount;
+      }
+
+      const flash = document.createElement("div");
+      flash.className = "detonation-flash";
+      flash.textContent = "DETONATION " + detonationCount;
+      document.body.appendChild(flash);
+      flash.addEventListener("animationend", () => flash.remove());
+    }
+
+    function screenShake(intensity = 6, duration = 180) {
+      if (!boardWrapperEl) return;
+      const start = performance.now();
+      const baseTransform = boardWrapperEl.style.transform || "";
+
+      function frame(t) {
+        const elapsed = t - start;
+        const progress = elapsed / duration;
+        if (progress >= 1) {
+          boardWrapperEl.style.transform = baseTransform;
+          return;
+        }
+
+        const falloff = 1 - progress;
+        const dx = (Math.random() * 2 - 1) * intensity * falloff;
+        const dy = (Math.random() * 2 - 1) * intensity * falloff;
+
+        boardWrapperEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    function wobbleSquare(r, c) {
+      const idx = r * 8 + c;
+      const sq = boardEl.children[idx];
+      if (!sq) return;
+      sq.classList.add("wobble");
+      sq.addEventListener("animationend", () => {
+        sq.classList.remove("wobble");
+      }, { once: true });
+    }
+
+    function renderMovesList() {
+      if (!movesListEl) return;
+      movesListEl.textContent = moveHistory.join("\n");
+      movesListEl.scrollTop = movesListEl.scrollHeight;
     }
 
     function initBoard() {
       console.log("[CHESS] Initialising board…");
       board = Array.from({ length: 8 }, () => Array(8).fill(EMPTY));
       const back = ["r","n","b","q","k","b","n","r"];
-      for (let c=0;c<8;c++){
-        board[0][c]={type:back[c],color:"b"};
-        board[1][c]={type:"p",color:"b"};
-        board[7][c]={type:back[c],color:"w"};
-        board[6][c]={type:"p",color:"w"};
+      for (let c = 0; c < 8; c++) {
+        board[0][c] = { type: back[c], color: "b" };
+        board[1][c] = { type: "p",   color: "b" };
+        board[7][c] = { type: back[c], color: "w" };
+        board[6][c] = { type: "p",   color: "w" };
       }
-      currentPlayer="w"; selected=null; legalMoves=[]; gameOver=false;
+      currentPlayer = "w";
+      selected = null;
+      legalMoves = [];
+      gameOver = false;
       explosionCells = [];
-      moveCounter = 1;
-      if (moveListEl) moveListEl.innerHTML = "";
+      detonationCount = 0;
+      lastMove = null;
+      moveHistory = [];
+      if (detonationCountEl) detonationCountEl.textContent = "0";
+      renderMovesList();
       renderBoard();
       updateStatus();
+      hideWinnerOverlay();
+      fadeOutVictoryAndStartBg();
     }
 
     function initLabels() {
-      console.log("[CHESS] Initialising rank/file labels");
       rankLabelsEl.innerHTML = "";
-      for (let r=0;r<8;r++){
-        const lab=document.createElement("div");
-        lab.textContent=8-r;
+      for (let r = 0; r < 8; r++) {
+        const lab = document.createElement("div");
+        lab.textContent = 8 - r;
         rankLabelsEl.appendChild(lab);
       }
-      fileLabelsEl.innerHTML="";
-      for (const f of "abcdefgh"){
-        const s=document.createElement("span");
-        s.textContent=f;
+      fileLabelsEl.innerHTML = "";
+      for (const f of "abcdefgh") {
+        const s = document.createElement("span");
+        s.textContent = f;
         fileLabelsEl.appendChild(s);
       }
     }
 
     function renderBoard() {
-      boardEl.innerHTML="";
-      for (let r=0;r<8;r++){
-        for (let c=0;c<8;c++){
-          const sq=document.createElement("div");
-          sq.className="square "+(((r+c)%2===0)?"light":"dark");
-          sq.dataset.r=r; sq.dataset.c=c;
-          const p=board[r][c];
-          if(p) {
-            sq.textContent=pieceSymbols[p.color][p.type];
+      boardEl.innerHTML = "";
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const sq = document.createElement("div");
+          sq.className = "square " + (((r + c) % 2 === 0) ? "light" : "dark");
+          sq.dataset.r = r;
+          sq.dataset.c = c;
+          const p = board[r][c];
+          if (p) {
+            sq.textContent = pieceSymbols[p.color][p.type];
             sq.classList.add(p.color === "w" ? "white-piece" : "black-piece");
           }
 
-          if(selected && selected.r===r && selected.c===c)
+          if (selected && selected.r === r && selected.c === c) {
             sq.classList.add("selected");
-          const m=legalMoves.find(x=>x.r===r&&x.c===c);
-          if(m){
-            sq.classList.add(m.capture?"capture-target":"move-target");
+          }
+          const m = legalMoves.find(x => x.r === r && x.c === c);
+          if (m) {
+            sq.classList.add(m.capture ? "capture-target" : "move-target");
           }
 
-          // Atomic flash overlay on affected cells
           if (explosionCells.some(e => e.r === r && e.c === c)) {
             sq.classList.add("atomic-hit");
           }
 
-          sq.onclick=onSquareClick;
+          if (lastMove) {
+            if (lastMove.fr === r && lastMove.fc === c) {
+              sq.classList.add("last-from");
+            }
+            if (lastMove.tr === r && lastMove.tc === c) {
+              sq.classList.add("last-to");
+            }
+          }
+
+          sq.onclick = onSquareClick;
           boardEl.appendChild(sq);
         }
       }
     }
 
-    function updateStatus(msg){
-      if(msg){ statusTextEl.textContent=msg; return; }
-      if (gameOver) return;
-      const txt = currentPlayer==="w"?"White to move":"Black to move";
-      statusTextEl.textContent = txt;
-      turnIndicatorEl.className = "player-dot " + (currentPlayer==="w"?"white":"black");
-    }
-
-    function onSquareClick(e){
-      if(gameOver) {
-        console.log("[CHESS] Click ignored: game over.");
+    function updateStatus(msg) {
+      if (msg) {
+        statusTextEl.textContent = msg;
         return;
       }
-      const r=+e.currentTarget.dataset.r;
-      const c=+e.currentTarget.dataset.c;
-      const p=board[r][c];
-      console.log("[CHESS] Square clicked:", { r, c, piece: p });
+      if (!gameStarted) {
+        statusTextEl.textContent = "Press START GAME";
+        return;
+      }
+      if (gameOver) return;
+      if (showIntroMessage) {
+        statusTextEl.textContent = "Win by killing the King or being the last side left alive.";
+        return;
+      }
+      const txt = currentPlayer === "w" ? "White to move" : "Black to move";
+      statusTextEl.textContent = txt;
+      turnIndicatorEl.className = "player-dot " + (currentPlayer === "w" ? "white" : "black");
+    }
 
-      if(!selected){
-        if(p && p.color===currentPlayer){
-          console.log("[CHESS] Selecting piece at", r, c);
-          selected={r,c};
-          legalMoves=getLegalMoves(r,c,board);
-          console.log("[CHESS] Legal moves:", legalMoves);
+    function onSquareClick(e) {
+      if (!gameStarted || gameOver) return;
+      const r = +e.currentTarget.dataset.r;
+      const c = +e.currentTarget.dataset.c;
+      const p = board[r][c];
+
+      if (!selected) {
+        if (p && p.color === currentPlayer) {
+          selected = { r, c };
+          legalMoves = getLegalMoves(r, c, board);
           renderBoard();
-        } else {
-          console.log("[CHESS] Clicked empty or opponent piece with nothing selected.");
         }
         return;
       }
 
-      if(selected.r===r && selected.c===c){
-        console.log("[CHESS] Deselected piece at", r, c);
-        selected=null; legalMoves=[]; renderBoard(); return;
-      }
-
-      if(p && p.color===currentPlayer){
-        console.log("[CHESS] Switching selection to another piece at", r, c);
-        selected={r,c};
-        legalMoves=getLegalMoves(r,c,board);
-        console.log("[CHESS] New legal moves:", legalMoves);
+      if (selected.r === r && selected.c === c) {
+        selected = null;
+        legalMoves = [];
         renderBoard();
         return;
       }
 
-      const move=legalMoves.find(m=>m.r===r&&m.c===c);
-      if(move){
-        console.log("[CHESS] Executing move from", selected, "to", {r,c}, "capture:", move.capture);
-        makeMove(selected.r,selected.c,r,c);
+      if (p && p.color === currentPlayer) {
+        selected = { r, c };
+        legalMoves = getLegalMoves(r, c, board);
+        renderBoard();
         return;
       }
 
-      console.log("[CHESS] Clicked non-legal square; clearing selection.");
-      selected=null; legalMoves=[]; renderBoard();
+      const move = legalMoves.find(m => m.r === r && m.c === c);
+      if (move) {
+        makeMove(selected.r, selected.c, r, c);
+        return;
+      }
+
+      selected = null;
+      legalMoves = [];
+      renderBoard();
     }
 
-    resetBtn.onclick = function() {
-      console.log("[CHESS] Reset button clicked.");
+    resetBtn.onclick = () => {
+      if (!gameStarted) return;
+      showIntroMessage = true;
       initBoard();
     };
+    if (winnerResetBtnEl) {
+      winnerResetBtnEl.onclick = () => {
+        if (!gameStarted) gameStarted = true;
+        showIntroMessage = true;
+        initBoard();
+      };
+    }
 
-    function inBounds(r,c){return r>=0&&r<8&&c>=0&&c<8;}
+    function inBounds(r, c) {
+      return r >= 0 && r < 8 && c >= 0 && c < 8;
+    }
 
-    function pawnMoves(r,c,b,color){
-      const moves=[];
-      const dir=color==="w"?-1:1;
-      const start=color==="w"?6:1;
-      if(inBounds(r+dir,c) && !b[r+dir][c])
-        moves.push({r:r+dir,c, capture:false});
-      if(r===start && !b[r+dir][c] && !b[r+2*dir][c])
-        moves.push({r:r+2*dir,c, capture:false});
-      for(const dc of[-1,1]){
-        const nr=r+dir,nc=c+dc;
-        if(inBounds(nr,nc) && b[nr][nc] && b[nr][nc].color!==color)
-          moves.push({r:nr,c:nc,capture:true});
+    function pawnMoves(r, c, b, color) {
+      const moves = [];
+      const dir = color === "w" ? -1 : 1;
+      const start = color === "w" ? 6 : 1;
+      if (inBounds(r + dir, c) && !b[r + dir][c]) {
+        moves.push({ r: r + dir, c, capture: false });
+      }
+      if (r === start && !b[r + dir][c] && !b[r + 2 * dir][c]) {
+        moves.push({ r: r + 2 * dir, c, capture: false });
+      }
+      for (const dc of [-1, 1]) {
+        const nr = r + dir;
+        const nc = c + dc;
+        if (inBounds(nr, nc) && b[nr][nc] && b[nr][nc].color !== color) {
+          moves.push({ r: nr, c: nc, capture: true });
+        }
       }
       return moves;
     }
 
-    function sliding(r,c,b,color,dirs){
-      const out=[];
-      for(const[dr,dc] of dirs){
-        let nr=r+dr,nc=c+dc;
-        while(inBounds(nr,nc)){
-          if(!b[nr][nc]) out.push({r:nr,c:nc,capture:false});
-          else {
-            if(b[nr][nc].color!==color) out.push({r:nr,c:nc,capture:true});
+    function sliding(r, c, b, color, dirs) {
+      const out = [];
+      for (const [dr, dc] of dirs) {
+        let nr = r + dr, nc = c + dc;
+        while (inBounds(nr, nc)) {
+          if (!b[nr][nc]) {
+            out.push({ r: nr, c: nc, capture: false });
+          } else {
+            if (b[nr][nc].color !== color) {
+              out.push({ r: nr, c: nc, capture: true });
+            }
             break;
           }
-          nr+=dr; nc+=dc;
+          nr += dr;
+          nc += dc;
         }
       }
       return out;
     }
 
-    function knight(r,c,b,color){
-      const K=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
-      const out=[];
-      for(const[dr,dc]of K){
-        const nr=r+dr,nc=c+dc;
-        if(!inBounds(nr,nc)) continue;
-        const t=b[nr][nc];
-        if(!t||t.color!==color)
-          out.push({r:nr,c:nc,capture:!!t});
-      }
-      return out;
-    }
-
-    function king(r,c,b,color){
-      const out=[];
-      for(let dr=-1;dr<=1;dr++){
-        for(let dc=-1;dc<=1;dc++){
-          if(!dr&&!dc) continue;
-          const nr=r+dr,nc=c+dc;
-          if(!inBounds(nr,nc)) continue;
-          const t=b[nr][nc];
-          if(!t||t.color!==color)
-            out.push({r:nr,c:nc,capture:!!t});
+    function knight(r, c, b, color) {
+      const K = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      const out = [];
+      for (const [dr, dc] of K) {
+        const nr = r + dr, nc = c + dc;
+        if (!inBounds(nr, nc)) continue;
+        const t = b[nr][nc];
+        if (!t || t.color !== color) {
+          out.push({ r: nr, c: nc, capture: !!t });
         }
       }
       return out;
     }
 
-    function getLegalMoves(r,c,b){
-      const p=b[r][c];
-      if(!p||p.color!==currentPlayer) return[];
-      switch(p.type){
-        case"p":return pawnMoves(r,c,b,p.color);
-        case"r":return sliding(r,c,b,p.color,[[-1,0],[1,0],[0,-1],[0,1]]);
-        case"b":return sliding(r,c,b,p.color,[[-1,-1],[-1,1],[1,-1],[1,1]]);
-        case"q":return sliding(r,c,b,p.color,[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]);
-        case"n":return knight(r,c,b,p.color);
-        case"k":return king(r,c,b,p.color);
-      }
-      return[];
-    }
-
-    function evaluateAtomicOutcome() {
-      let whiteKing=false, blackKing=false;
-      for (let r=0;r<8;r++){
-        for (let c=0;c<8;c++){
-          const p=board[r][c];
-          if (!p) continue;
-          if (p.type === "k") {
-            if (p.color === "w") whiteKing = true;
-            else blackKing = true;
+    function kingMoves(r, c, b, color) {
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          const nr = r + dr, nc = c + dc;
+          if (!inBounds(nr, nc)) continue;
+          const t = b[nr][nc];
+          if (!t || t.color !== color) {
+            out.push({ r: nr, c: nc, capture: !!t });
           }
         }
       }
-      if (whiteKing && blackKing) return null;
-      if (!whiteKing && !blackKing) return "Both kings vaporised. Atomic draw.";
-      if (!whiteKing) return "Black wins in a nuclear blast.";
-      if (!blackKing) return "White wins in a nuclear blast.";
-      return null;
+      return out;
+    }
+
+    function getLegalMoves(r, c, b) {
+      const p = b[r][c];
+      if (!p || p.color !== currentPlayer) return [];
+      switch (p.type) {
+        case "p": return pawnMoves(r, c, b, p.color);
+        case "r": return sliding(r, c, b, p.color, [[-1,0],[1,0],[0,-1],[0,1]]);
+        case "b": return sliding(r, c, b, p.color, [[-1,-1],[-1,1],[1,-1],[1,1]]);
+        case "q": return sliding(r, c, b, p.color, [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]);
+        case "n": return knight(r, c, b, p.color);
+        case "k": return kingMoves(r, c, b, p.color);
+      }
+      return [];
+    }
+
+    function evaluateSurvivors() {
+      let whitePieces = 0;
+      let blackPieces = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const p = board[r][c];
+          if (!p) continue;
+          if (p.color === "w") whitePieces++;
+          else blackPieces++;
+        }
+      }
+      if (whitePieces > 0 && blackPieces > 0) return null;
+      if (whitePieces > 0 && blackPieces === 0) {
+        return { winner: "w", message: "White wins: last side left alive." };
+      }
+      if (blackPieces > 0 && whitePieces === 0) {
+        return { winner: "b", message: "Black wins: last side left alive." };
+      }
+      return { winner: null, message: "All pieces vaporised. Atomic draw." };
     }
 
     function triggerExplosionAnimation(cr, cc) {
@@ -720,68 +1192,126 @@
       const size = 72;
       const overlay = document.createElement("div");
       overlay.className = "explosion";
-
       const left = (cc - 1) * size;
       const top  = (cr - 1) * size;
-
       overlay.style.left = left + "px";
       overlay.style.top  = top  + "px";
-
       boardWrapperEl.appendChild(overlay);
-      overlay.addEventListener("animationend", () => {
-        overlay.remove();
-      });
+      overlay.addEventListener("animationend", () => overlay.remove());
+    }
+
+    function resizeNukeCanvas() {
+      if (!nukeCanvas || !nukeCtx) return;
+      nukeCanvas.width = window.innerWidth;
+      nukeCanvas.height = window.innerHeight;
+    }
+
+    function playNukeShader(isMega) {
+      if (!nukeCanvas || !nukeCtx) return;
+      resizeNukeCanvas();
+      const ctx = nukeCtx;
+      const w = nukeCanvas.width;
+      const h = nukeCanvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const maxR = Math.sqrt(w*w + h*h);
+      const duration = isMega ? 700 : 400;
+      const start = performance.now();
+
+      nukeCanvas.style.opacity = isMega ? "1" : "0.7";
+
+      function frame(t) {
+        const elapsed = t - start;
+        const progress = elapsed / duration;
+        if (progress >= 1) {
+          ctx.clearRect(0,0,w,h);
+          nukeCanvas.style.opacity = "0";
+          return;
+        }
+
+        const tNorm = progress;
+        const innerR = maxR * tNorm * 0.2;
+        const outerR = maxR * (0.2 + tNorm * 0.8);
+
+        ctx.clearRect(0,0,w,h);
+
+        const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+        const jitter = Math.sin(t / 40) * 0.08;
+
+        grad.addColorStop(0,   "rgba(255,255,220," + (1.0 - tNorm*0.4) + ")");
+        grad.addColorStop(0.25 + jitter, "rgba(255,220,0," + (1.0 - tNorm*0.2) + ")");
+        grad.addColorStop(0.55, "rgba(255,100,0," + (0.9 - tNorm*0.5) + ")");
+        grad.addColorStop(0.8,  "rgba(255,0,120," + (0.7 - tNorm*0.6) + ")");
+        grad.addColorStop(1,    "rgba(0,0,0,0)");
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,w,h);
+
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
     }
 
     function applyAtomicExplosion(cr, cc) {
-      console.log("[ATOMIC] Explosion at", cr, cc);
       const now = performance.now();
       const affected = [];
+      let removedCount = 0;
 
       for (let r = cr - 1; r <= cr + 1; r++) {
         for (let c = cc - 1; c <= cc + 1; c++) {
           if (!inBounds(r, c)) continue;
-          // Capturing piece (at cr,cc) survives
           if (r === cr && c === cc) continue;
 
           if (board[r][c]) {
-            console.log("[ATOMIC] Destroying piece at", r, c, board[r][c]);
             board[r][c] = EMPTY;
+            removedCount++;
           }
           affected.push({ r, c, expiresAt: now + 400 });
         }
       }
 
+      if (removedCount > 0) {
+        playOneShot("splash");
+      }
+
       explosionCells = explosionCells.concat(affected);
+      updateDetonationCounter();
       triggerExplosionAnimation(cr, cc);
+      playNukeShader(false);
+      screenShake(5, 160);
       renderBoard();
+      wobbleSquare(cr, cc);
+
+      const outcome = evaluateSurvivors();
+      if (outcome) {
+        gameOver = true;
+        updateStatus(outcome.message);
+        if (outcome.winner) {
+          showWinnerOverlay(outcome.winner, outcome.message);
+        } else {
+          showDrawOverlay(outcome.message);
+        }
+        return;
+      }
 
       setTimeout(() => {
         const t = performance.now();
         explosionCells = explosionCells.filter(e => e.expiresAt > t);
         renderBoard();
       }, 450);
-
-      const outcome = evaluateAtomicOutcome();
-      if (outcome) {
-        console.log("[ATOMIC] Game over:", outcome);
-        gameOver = true;
-        updateStatus(outcome);
-      }
     }
 
-    // Full-board explosion when a king is taken
     function applyKingNuke(cr, cc, movingPiece) {
-      console.log("[ATOMIC] KING NUKE at", cr, cc);
       const now = performance.now();
       const affected = [];
 
+      playOneShot("king");
+
       for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
-          // Capturing piece at (cr, cc) survives
           if (r === cr && c === cc) continue;
           if (board[r][c]) {
-            console.log("[ATOMIC] King-nuke destroying piece at", r, c, board[r][c]);
             board[r][c] = EMPTY;
           }
           affected.push({ r, c, expiresAt: now + 600 });
@@ -789,55 +1319,98 @@
       }
 
       explosionCells = affected;
+      updateDetonationCounter();
       triggerExplosionAnimation(cr, cc);
+      playNukeShader(true);
+      screenShake(10, 260);
       renderBoard();
+      wobbleSquare(cr, cc);
+
+      const outcome = evaluateSurvivors();
+      if (outcome) {
+        gameOver = true;
+        updateStatus(outcome.message);
+        if (outcome.winner) {
+          showWinnerOverlay(outcome.winner, outcome.message);
+        } else {
+          showDrawOverlay(outcome.message);
+        }
+        return;
+      }
 
       setTimeout(() => {
         const t = performance.now();
         explosionCells = explosionCells.filter(e => e.expiresAt > t);
         renderBoard();
       }, 650);
-
-      const winner = movingPiece.color === "w" ? "White" : "Black";
-      const msg = winner + " wins by capturing the king.";
-      console.log("[ATOMIC] Game over:", msg);
-      gameOver = true;
-      updateStatus(msg);
     }
 
-    function makeMove(fr,fc,tr,tc){
-      const moving=board[fr][fc];
-      const target=board[tr][tc];
-      console.log("[CHESS] makeMove:", {
-        from:{r:fr,c:fc},
-        to:{r:tr,c:tc},
-        moving,
-        target
-      });
+    function showWinnerOverlay(winnerColor, message) {
+      if (!winnerOverlayEl) return;
+      stopBgMusic();
+      playVictory();
 
-      // Move piece first
-      board[tr][tc]=moving;
-      board[fr][fc]=EMPTY;
+      winnerTitleEl.textContent = (winnerColor === "w" ? "WHITE" : "BLACK") + " WINS";
+      winnerSubtitleEl.textContent = message.toUpperCase();
+      winnerOverlayEl.classList.remove("hidden");
+    }
+
+    function showDrawOverlay(message) {
+      if (!winnerOverlayEl) return;
+      stopBgMusic();
+      winnerTitleEl.textContent = "DRAW";
+      winnerSubtitleEl.textContent = message.toUpperCase();
+      winnerOverlayEl.classList.remove("hidden");
+    }
+
+    function hideWinnerOverlay() {
+      if (!winnerOverlayEl) return;
+      winnerOverlayEl.classList.add("hidden");
+    }
+
+    function recordMove(moving, fr, fc, tr, tc, isCapture) {
+      const fromSq = coordToAlgebraic(fr, fc);
+      const toSq   = coordToAlgebraic(tr, tc);
+      const colorName = moving.color === "w" ? "White" : "Black";
+      const pieceType = moving.type.toUpperCase();
+      const capMark = isCapture ? " x" : "";
+      const entry = colorName + " " + pieceType + ": " + fromSq + " → " + toSq + capMark;
+      moveHistory.push(entry);
+      renderMovesList();
+    }
+
+    function makeMove(fr, fc, tr, tc) {
+      const moving = board[fr][fc];
+      const target = board[tr][tc];
+
+      board[tr][tc] = moving;
+      board[fr][fc] = EMPTY;
 
       const isCapture = !!target;
 
-      // Clear selection and available move highlights immediately for the new board state
       selected = null;
       legalMoves = [];
+      showIntroMessage = false;
+
+      lastMove = { fr, fc, tr, tc };
+
+      recordMove(moving, fr, fc, tr, tc, isCapture);
+
+      if (!isCapture) {
+        playOneShot("move");
+      } else {
+        playOneShot("capture");
+      }
 
       if (isCapture && target.type === "k") {
-        // Special rule: king capture = full-board nuke
         applyKingNuke(tr, tc, moving);
       } else if (isCapture) {
-        // Standard atomic explosion around capture square
         applyAtomicExplosion(tr, tc);
       } else {
         renderBoard();
       }
 
-      addMoveToList(fr, fc, tr, tc, moving, target);
-      // Send OSC for the move (capture flag only reflects direct capture)
-      sendOscMove(fr,fc,tr,tc,moving,target);
+      sendOscMove(fr, fc, tr, tc, moving, target);
 
       if (gameOver) {
         selected = null;
@@ -845,16 +1418,80 @@
         return;
       }
 
-      currentPlayer=currentPlayer==="w"?"b":"w";
+      currentPlayer = currentPlayer === "w" ? "b" : "w";
       updateStatus();
     }
 
-    // Boot sequence
-    console.log("[CHESS] Booting…");
-    initLabels();
-    initBoard();
-    initOSC();
-    console.log("[CHESS] Boot complete.");
+    function toggleAudioMoves() {
+      showAudioPane = !showAudioPane;
+      if (audioSectionEl) {
+        audioSectionEl.style.display = showAudioPane ? "flex" : "none";
+      }
+      if (movesSectionEl) {
+        movesSectionEl.style.display = showAudioPane ? "none" : "flex";
+      }
+    }
+
+    function boot() {
+      resizeNukeCanvas();
+      window.addEventListener("resize", resizeNukeCanvas);
+      initLabels();
+      initOSC();
+
+      bindSoundLoader(soundMoveInput,    "move",   false);
+      bindSoundLoader(soundCaptureInput, "capture",false);
+      bindSoundLoader(soundSplashInput,  "splash", false);
+      bindSoundLoader(soundKingInput,    "king",   false);
+      bindSoundLoader(soundBgInput,      "bg",     true);
+      bindSoundLoader(soundWinInput,     "win",    false);
+
+      if (testMoveBtn)    testMoveBtn.onclick    = () => playOneShot("move");
+      if (testCaptureBtn) testCaptureBtn.onclick = () => playOneShot("capture");
+      if (testSplashBtn)  testSplashBtn.onclick  = () => playOneShot("splash");
+      if (testKingBtn)    testKingBtn.onclick    = () => playOneShot("king");
+      if (testWinBtn)     testWinBtn.onclick     = () => playVictory();
+      if (stopWinBtn)     stopWinBtn.onclick     = () => stopVictory();
+
+      if (bgTestBtn) {
+        bgTestBtn.onclick = () => {
+          const a = sounds.bg;
+          if (!a) return;
+          try {
+            if (bgTestInstance) {
+              bgTestInstance.pause();
+              bgTestInstance.currentTime = 0;
+            }
+            bgTestInstance = a.cloneNode();
+            bgTestInstance.loop = false;
+            bgTestInstance.currentTime = 0;
+            bgTestInstance.play();
+          } catch (e) {
+            console.warn("[AUDIO] bg test play failed", e);
+          }
+        };
+      }
+      if (bgStopBtn) bgStopBtn.onclick = () => stopBgMusic();
+
+      if (startGameBtn) {
+        startGameBtn.onclick = () => {
+          if (!gameStarted) {
+            gameStarted = true;
+          }
+          showIntroMessage = true;
+          initBoard();
+        };
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "a" || e.key === "A") {
+          toggleAudioMoves();
+        }
+      });
+
+      console.log("[CHESS] Boot complete. Press 'A' to toggle audio / moves. Waiting for START GAME.");
+    }
+
+    boot();
   </script>
 </body>
 </html>
