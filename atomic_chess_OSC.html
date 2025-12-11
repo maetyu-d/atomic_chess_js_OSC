@@ -29,6 +29,58 @@
       transition: opacity 0.15s linear;
     }
 
+    .title-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 20% 10%, #fffa88 0, rgba(255,250,136,0) 45%),
+        radial-gradient(circle at 80% 90%, #ff6b3d 0, rgba(255,107,61,0) 45%),
+        linear-gradient(135deg, #1a0000 0, #260008 40%, #050509 100%);
+      color: #ffefc2;
+      text-transform: uppercase;
+      letter-spacing: 0.4em;
+    }
+    .title-screen.hidden {
+      display: none;
+    }
+    .title-main {
+      font-size: 64px;
+      font-weight: 900;
+      border: 6px solid #ffcc00;
+      padding: 26px 40px 20px;
+      box-shadow:
+        0 0 0 6px #ff4b2b,
+        0 0 40px rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.9);
+    }
+    .title-main span {
+      display: block;
+      text-align: center;
+    }
+    .title-main span:nth-child(1) {
+      color: #ffcc00;
+    }
+    .title-main span:nth-child(2) {
+      color: #ff4b2b;
+    }
+    .title-sub {
+      margin-top: 18px;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: #ffeebb;
+    }
+    .title-hint {
+      margin-top: 8px;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      color: #ff9a6b;
+    }
+
     .app {
       display: flex;
       flex-direction: row;
@@ -223,6 +275,33 @@
     }
     .square.wobble {
       animation: pieceWobble 0.18s ease-out;
+    }
+
+    /* Contaminated squares: acid green fade over 3 turns */
+    .square.contaminated {
+      position: relative;
+      box-shadow:
+        0 0 0 2px rgba(0,255,128,0.7) inset,
+        0 0 10px rgba(0,255,128,0.7);
+    }
+    .square.contaminated::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(0,255,128,0.55) 0%,
+        rgba(0,255,128,0.18) 45%,
+        rgba(0,0,0,0) 100%);
+      pointer-events: none;
+    }
+    .square.contaminated-3::before {
+      opacity: 1;
+    }
+    .square.contaminated-2::before {
+      opacity: 0.65;
+    }
+    .square.contaminated-1::before {
+      opacity: 0.35;
     }
 
     .status-bar {
@@ -495,6 +574,15 @@
 <body>
   <canvas id="nukeCanvas" class="nuke-canvas"></canvas>
 
+  <div id="titleScreen" class="title-screen">
+    <div class="title-main">
+      <span>ATOMIC</span>
+      <span>CHESS</span>
+    </div>
+    <div class="title-sub">Like chess, but with nukes</div>
+    <div class="title-hint">Click or press any key to enter </div>
+  </div>
+
   <div id="winnerOverlay" class="winner-overlay hidden">
     <div class="winner-box">
       <div id="winnerTitle" class="winner-title">PLAYER WINS</div>
@@ -531,7 +619,7 @@
         <button id="startGameBtn" type="button">Start Game</button>
       </div>
 
-      <div id="audioSection" class="info-section">
+      <div id="audioSection" class="info-section" style="display:none;">
         <h2>Audio</h2>
         <div class="sound-grid">
           <div class="sound-row">
@@ -569,7 +657,7 @@
         </div>
       </div>
 
-      <div id="movesSection" class="info-section" style="display:none;">
+      <div id="movesSection" class="info-section">
         <h2>Moves</h2>
         <div id="movesList" class="moves-list"></div>
       </div>
@@ -600,6 +688,10 @@
 
     let moveHistory = [];
 
+    // Contaminated ground-zero squares
+    // Each entry: { r, c, active, turnsRemaining }
+    let contaminatedSquares = [];
+
     const boardEl        = document.getElementById("chessBoard");
     const statusTextEl   = document.getElementById("statusText");
     const turnIndicatorEl= document.getElementById("turnIndicator");
@@ -614,6 +706,7 @@
     const audioSectionEl = document.getElementById("audioSection");
     const movesSectionEl = document.getElementById("movesSection");
     const movesListEl    = document.getElementById("movesList");
+    const titleScreenEl  = document.getElementById("titleScreen");
 
     const winnerOverlayEl   = document.getElementById("winnerOverlay");
     const winnerTitleEl     = document.getElementById("winnerTitle");
@@ -650,7 +743,7 @@
 
     let victoryFadeTimer = null;
     let bgTestInstance = null;
-    let showAudioPane = true;
+    let showAudioPane = false;
 
     const pieceSymbols = {
       w: { k: "♔", q: "♕", r: "♖", b: "♗", n: "♘", p: "♙" },
@@ -924,6 +1017,43 @@
       movesListEl.scrollTop = movesListEl.scrollHeight;
     }
 
+    function isSquareForbidden(r, c) {
+      return contaminatedSquares.some(cs => cs.active && cs.turnsRemaining > 0 && cs.r === r && cs.c === c);
+    }
+
+    function markContamination(cr, cc) {
+      // Create or reset contamination entry for this ground-zero square.
+      const existing = contaminatedSquares.find(cs => cs.r === cr && cs.c === cc);
+      if (existing) {
+        existing.active = false;
+        existing.turnsRemaining = 0;
+      } else {
+        contaminatedSquares.push({ r: cr, c: cc, active: false, turnsRemaining: 0 });
+      }
+    }
+
+    function advanceContamination(fr, fc) {
+      // When the taker moves OUT of a contaminated ground zero, activate the 3-turn lock.
+      const justActivated = [];
+      contaminatedSquares.forEach(cs => {
+        if (!cs.active && cs.r === fr && cs.c === fc) {
+          cs.active = true;
+          cs.turnsRemaining = 3;
+          justActivated.push(cs);
+        }
+      });
+
+      // Decrement existing active contamination (but not the one we just activated).
+      contaminatedSquares.forEach(cs => {
+        if (cs.active && !justActivated.includes(cs)) {
+          cs.turnsRemaining--;
+        }
+      });
+
+      // Remove expired contamination.
+      contaminatedSquares = contaminatedSquares.filter(cs => !cs.active || cs.turnsRemaining > 0);
+    }
+
     function initBoard() {
       console.log("[CHESS] Initialising board…");
       board = Array.from({ length: 8 }, () => Array(8).fill(EMPTY));
@@ -942,6 +1072,7 @@
       detonationCount = 0;
       lastMove = null;
       moveHistory = [];
+      contaminatedSquares = [];
       if (detonationCountEl) detonationCountEl.textContent = "0";
       renderMovesList();
       renderBoard();
@@ -998,6 +1129,15 @@
             if (lastMove.tr === r && lastMove.tc === c) {
               sq.classList.add("last-to");
             }
+          }
+
+          const cont = contaminatedSquares.find(cs => cs.r === r && cs.c === c);
+          if (cont) {
+            let level = 3;
+            if (cont.active) {
+              level = Math.max(1, Math.min(3, cont.turnsRemaining));
+            }
+            sq.classList.add("contaminated", "contaminated-" + level);
           }
 
           sq.onclick = onSquareClick;
@@ -1087,16 +1227,23 @@
       const dir = color === "w" ? -1 : 1;
       const start = color === "w" ? 6 : 1;
       if (inBounds(r + dir, c) && !b[r + dir][c]) {
-        moves.push({ r: r + dir, c, capture: false });
+        if (!isSquareForbidden(r + dir, c)) {
+          moves.push({ r: r + dir, c, capture: false });
+        }
       }
       if (r === start && !b[r + dir][c] && !b[r + 2 * dir][c]) {
-        moves.push({ r: r + 2 * dir, c, capture: false });
+        if (!isSquareForbidden(r + 2 * dir, c)) {
+          moves.push({ r: r + 2 * dir, c, capture: false });
+        }
       }
       for (const dc of [-1, 1]) {
         const nr = r + dir;
         const nc = c + dc;
-        if (inBounds(nr, nc) && b[nr][nc] && b[nr][nc].color !== color) {
-          moves.push({ r: nr, c: nc, capture: true });
+        if (inBounds(nr, nc)) {
+          const t = b[nr][nc];
+          if (t && t.color !== color && !isSquareForbidden(nr, nc)) {
+            moves.push({ r: nr, c: nc, capture: true });
+          }
         }
       }
       return moves;
@@ -1107,10 +1254,13 @@
       for (const [dr, dc] of dirs) {
         let nr = r + dr, nc = c + dc;
         while (inBounds(nr, nc)) {
-          if (!b[nr][nc]) {
-            out.push({ r: nr, c: nc, capture: false });
+          const t = b[nr][nc];
+          if (!t) {
+            if (!isSquareForbidden(nr, nc)) {
+              out.push({ r: nr, c: nc, capture: false });
+            }
           } else {
-            if (b[nr][nc].color !== color) {
+            if (t.color !== color && !isSquareForbidden(nr, nc)) {
               out.push({ r: nr, c: nc, capture: true });
             }
             break;
@@ -1129,8 +1279,10 @@
         const nr = r + dr, nc = c + dc;
         if (!inBounds(nr, nc)) continue;
         const t = b[nr][nc];
-        if (!t || t.color !== color) {
-          out.push({ r: nr, c: nc, capture: !!t });
+        if (!t && !isSquareForbidden(nr, nc)) {
+          out.push({ r: nr, c: nc, capture: false });
+        } else if (t && t.color !== color && !isSquareForbidden(nr, nc)) {
+          out.push({ r: nr, c: nc, capture: true });
         }
       }
       return out;
@@ -1144,8 +1296,10 @@
           const nr = r + dr, nc = c + dc;
           if (!inBounds(nr, nc)) continue;
           const t = b[nr][nc];
-          if (!t || t.color !== color) {
-            out.push({ r: nr, c: nc, capture: !!t });
+          if (!t && !isSquareForbidden(nr, nc)) {
+            out.push({ r: nr, c: nc, capture: false });
+          } else if (t && t.color !== color && !isSquareForbidden(nr, nc)) {
+            out.push({ r: nr, c: nc, capture: true });
           }
         }
       }
@@ -1330,11 +1484,14 @@
       if (outcome) {
         gameOver = true;
         updateStatus(outcome.message);
-        if (outcome.winner) {
-          showWinnerOverlay(outcome.winner, outcome.message);
-        } else {
-          showDrawOverlay(outcome.message);
-        }
+        // Delay the win screen by 1 second after a KING NUKE for extra drama.
+        setTimeout(() => {
+          if (outcome.winner) {
+            showWinnerOverlay(outcome.winner, outcome.message);
+          } else {
+            showDrawOverlay(outcome.message);
+          }
+        }, 1000);
         return;
       }
 
@@ -1400,6 +1557,8 @@
         playOneShot("move");
       } else {
         playOneShot("capture");
+        // Mark ground-zero contamination on capture square
+        markContamination(tr, tc);
       }
 
       if (isCapture && target.type === "k") {
@@ -1418,6 +1577,9 @@
         return;
       }
 
+      // Advance contamination lifecycle once the move is completed
+      advanceContamination(fr, fc);
+
       currentPlayer = currentPlayer === "w" ? "b" : "w";
       updateStatus();
     }
@@ -1432,9 +1594,19 @@
       }
     }
 
-    function boot() {
+    function hideTitleScreen() {
+      if (!titleScreenEl) return;
+      if (titleScreenEl.classList.contains("hidden")) return;
+      titleScreenEl.classList.add("hidden");
+    }
+
+    function resizeNukeCanvasWrapper() {
       resizeNukeCanvas();
-      window.addEventListener("resize", resizeNukeCanvas);
+    }
+
+    function boot() {
+      resizeNukeCanvasWrapper();
+      window.addEventListener("resize", resizeNukeCanvasWrapper);
       initLabels();
       initOSC();
 
@@ -1482,7 +1654,15 @@
         };
       }
 
+      if (titleScreenEl) {
+        titleScreenEl.addEventListener("click", hideTitleScreen);
+      }
+
       document.addEventListener("keydown", (e) => {
+        if (titleScreenEl && !titleScreenEl.classList.contains("hidden")) {
+          hideTitleScreen();
+          return;
+        }
         if (e.key === "a" || e.key === "A") {
           toggleAudioMoves();
         }
